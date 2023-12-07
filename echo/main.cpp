@@ -1,51 +1,48 @@
-#include <netinet/in.h>
 #include <iostream>
+#include <cstring>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <cstdlib>
 #include <unistd.h>
-using namespace std;
-
-int main() {
-    struct sockaddr_in {
-        short sin_family;
-        unsigned short sin_port;
-        struct in_addr sin_addr;
-        char sin_zero[8];
-    };
-    struct in_addr {
-        unsigned long s_addr;
-    };
-
-    int s = socket(AF_INET, SOCK_STREAM, 0);
-
-
-    sockaddr_in* self_addr = new (sockaddr_in);
-    self_addr->sin_family = AF_INET;
-    self_addr->sin_port = htons(77777);
-    self_addr->sin_addr.s_addr = inet_addr("127.0.0.1");
-
-    int b = bind(s, (const sockaddr*)self_addr, sizeof(sockaddr_in));
-    if (b == -1) {
-        cout << "Binding error\n";
-        return 1;
-    }
-    listen(s, SOMAXCONN);
-    while (true) {
-        sockaddr_in* client_addr = new sockaddr_in;
-        socklen_t len = sizeof(sockaddr_in);
-        int work_sock = accept(s, (sockaddr*)(client_addr), &len);
-        if (work_sock == -1) {
-            cout << "Error #2\n";
-        }
-        else {
-            cout << "Successfull client connection!\n";
-            char msg[256];
-            recv(work_sock, msg, sizeof(msg), 0);
-            cout << "Message from client: " << '"' << msg << '"' << endl;
-            send(work_sock, msg, sizeof(msg), 0);
-            cout << "Message was returned to client!\n";
-        }
-    }
-    close(s);
-    return 0;
+#include <stdexcept>
+int main()
+{
+	const char* server_ip = "172.16.40.1";
+	const int server_port = 7;
+	int client_socket = socket(AF_INET, SOCK_STREAM, 0);
+	if (client_socket == -1) {
+		std::cerr << "ОШибка при создании сокета" << std::endl;
+		return 1;
+	}
+	struct sockaddr_in server_address;
+	server_address.sin_family = AF_INET;
+	server_address.sin_port = htons(server_port);
+	server_address.sin_addr.s_addr = inet_addr(server_ip);
+	int rc = connect(client_socket, (struct
+		sockaddr*)&server_address, sizeof(server_address));
+	if (rc == -1) {
+		std::cerr << "	Ошибка при подключении к серверу" <<
+			std::endl;
+		close(client_socket);
+		return 1;
+	}
+	const char* message = "Hello, Echo!";
+	ssize_t sent_bytes = send(client_socket, message,
+		strlen(message), 0);
+	if (sent_bytes == -1) {
+		std::cerr << "Ошибка при отправке сообщения" << std::endl;
+		close(client_socket);
+		return 1;
+	}
+	char buffer[4096];
+	memset(buffer, 0 , sizeof(buffer));
+	ssize_t received_bytes = recv(client_socket, buffer, sizeof(buffer), 0);
+	if (received_bytes == -1) {
+		std::cerr << "Ошибка при получении ответа" << std::endl;
+		close(client_socket);
+		return 1;
+	}
+	std::cout << "Ответ от сервера: " << buffer << std::endl;
+	close(client_socket);
+	return 0;
 }
